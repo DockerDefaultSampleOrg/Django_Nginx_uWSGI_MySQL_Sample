@@ -1,0 +1,31 @@
+# builder
+FROM python:3.12.0-bullseye as builder
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN mkdir app
+# コンテナ内で作業するディレクトリを /app に設定します。このコマンドを使用することで、以降のRUN、CMD、COPYなどのコマンドで使用するディレクトリを明示的に指定できます。また、Dockerイメージ内に /app ディレクトリがない場合は、自動的に作成されます。
+WORKDIR /app
+RUN mkdir -p tmp/sockets
+COPY ./requirements.txt /app/
+RUN pip install -U pip && pip install --no-cache-dir -r requirements.txt
+# COPY . . は、Dockerイメージ内の作業ディレクトリ（WORKDIR で設定されたディレクトリ）から、同じDockerイメージ内の現在のディレクトリ（ . ）にファイルをコピーする
+COPY . .
+
+
+# runner
+FROM python:3.12.0-slim-bullseye as production
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+RUN mkdir app
+WORKDIR /app
+RUN mkdir -p tmp/sockets
+
+RUN apt update \
+    && apt install -y libpq5 libxml2 libmariadb-dev-compat libmariadb-dev \
+    && apt clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/uwsgi /usr/local/bin/uwsgi
+COPY --from=builder /app /app
