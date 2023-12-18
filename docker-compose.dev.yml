@@ -27,6 +27,7 @@ services:
       context: ./Django/
     container_name: Django
     volumes:
+      - ./django/static:/static
       - ./Django:/app
     env_file:
       - .env.dev
