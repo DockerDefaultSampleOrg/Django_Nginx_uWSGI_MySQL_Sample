@@ -29,7 +29,6 @@ services:
     volumes:
       - tmp-data:/app/tmp
       - ./Nginx/static:/app/static
-    command: uwsgi --ini uwsgi.ini
     env_file:
       - .env.prod
     # 先にdbを起動してからappを起動する
@@ -45,7 +44,7 @@ services:
       - tmp-data:/app/tmp
       - ./Nginx/static:/app/static
     ports:
-      - "80:80"
+      - 80:80
     depends_on:
       - app
   

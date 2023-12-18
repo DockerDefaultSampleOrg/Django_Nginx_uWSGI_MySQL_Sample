@@ -42,30 +42,6 @@ import os
 # ALLOWED_HOSTS = []
 ALLOWED_HOSTS = ['*']
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # 'DIRS': [],
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
-]
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
 # MySQLのパラメータを.envから取得
 DATABASES = {
     "default": {
@@ -79,10 +55,6 @@ DATABASES = {
     }
 }
 
-# LANGUAGE_CODE = 'en-us'
-
-# TIME_ZONE = 'UTC'
-
 # 言語を日本語に設定
 LANGUAGE_CODE = 'ja'
 # タイムゾーンをAsia/Tokyoに設定
@@ -91,7 +63,6 @@ TIME_ZONE = 'Asia/Tokyo'
 # STATIC_ROOTを設定
 # Djangoの管理者画面にHTML、CSS、Javascriptが適用されます
 STATIC_ROOT = "/static/"
-STATIC_URL = "/static/"
 ```
 
 4. Djangoアプリ構成を作成する。
@@ -110,9 +81,33 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     '<アプリ名>',
 ]
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        # 'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, '<アプリ名>/templates')],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+
+STATICFILES_DIRS = [os.path.join(BASE_DIR, '<アプリ名>/static')]
+
 ```
 
-6. Dockerを削除する。
+6. <アプリ名>ディレクトリの中に、staticディレクトリとtemplatesディレクトリを作成する。
+
+
+7. Dockerを削除する。
 ```
 # docker-compose.dev.ymlのコンテナを一括で停止・削除
 docker compose -f docker-compose.dev.yml down -v
@@ -125,37 +120,43 @@ docker system prune
 
 ```
 
-7. Dockerを起動する。
+8. Dockerを起動する。
 ```
 docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-8. 起動確認する。
+9. マイグレーションを実行する。
+```
+docker compose -f docker-compose.dev.yml exec app python manage.py makemigrations <アプリ名> --noinput
+docker compose -f docker-compose.dev.yml exec app python manage.py migrate --noinput
+
+```
+
+10. staticのファイルをsettings.pyで指定した場所に集める。
+```
+docker compose -f docker-compose.dev.yml exec app python manage.py collectstatic --noinput
+
+```
+
+11. スーパーユーザーを作成する。
+```
+docker compose -f docker-compose.dev.yml exec app python manage.py createsuperuser
+
+```
+
+12. 起動確認する。
 ```
 http://localhost:8000
 ```
 
-9. 各Djangoのコマンド実行方法。
-```
-# マイグレーションを実行
-docker compose -f docker-compose.dev.yml exec app python manage.py makemigrations <アプリ名> --noinput
-docker compose -f docker-compose.dev.yml exec app python manage.py migrate --noinput
-
-# staticのファイルをsettings.pyで指定した場所に集める
-docker compose -f docker-compose.dev.yml exec app python manage.py collectstatic --noinput
-
-# スーパーユーザー作成
-docker compose -f docker-compose.dev.yml exec app python manage.py createsuperuser
-```
-
-10. 本番用の設定
+13. 本番用の設定
 - django/uwsgi.iniをアプリ用に修正する。
 - 本番用Dockerを起動する。
 ```
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-11. 本番環境の起動確認する。
+14. 本番環境の起動確認する。
 ```
 http://localhost
 ```
@@ -176,8 +177,6 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - Git運用方法
 ```
-# git clone https://github.com/Purewest-Project/TempleManagement.git
-
 # git flow初期化
 git flow init -d
 
@@ -187,7 +186,7 @@ git push -u origin develop
 # featureで開発開始
 git flow feature start feature_name
 (例)
-git flow feature start '#nishi_plot'
+git flow feature start '#first_plot'
 
 # 作業をステージングに上げる
 git add .
@@ -198,12 +197,12 @@ git commit -m '<作業内容>'
 # コミットしたものをPushする
 git push -u origin 'feature/<ブランチ名>'
 (例)
-git push -u origin 'feature/#nishi_plot'
+git push -u origin 'feature/#first_plot'
 
 # featureブランチでの作業終了
 git flow feature finish feature_name
 (例)
-git flow feature finish '#nishi_plot'
+git flow feature finish '#first_plot'
 (これで自動的にdevelopブランチにチェックアウトされる)
 
 ```
