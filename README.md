@@ -1,52 +1,79 @@
-# Django + Nginx + uWSGI + MySQL
----
+# Django + Nginx + MySQL プロジェクト
 
-1. envファイルの作成
- - 開発用のenvファイル「.env.dev」ファイルを作成する。
- - 本番用のenvファイル「.env.prod」ファイルを作成する。
- 
- 【例】
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![Django](https://img.shields.io/badge/django-4.2-blue)
+![MySQL](https://img.shields.io/badge/mysql-8.0-blue)
+![Nginx](https://img.shields.io/badge/nginx-1.25-blue)
+![uWSGI](https://img.shields.io/badge/uwsgi-2.0.23-blue)
+
+
+このプロジェクトは、Dockerを使用してコンテナ化されたDjangoアプリケーション、リバースプロキシとしてのNginx、そしてデータベースとしてMySQLをセットアップします。
+
+## 開発環境のセットアップ
+
+1. ルートディレクトリに`.env.dev`ファイルを作成し、以下の内容を記入してください：
 ```
-# MYSQLのルートパスワードがないとコンテナが起動しない
-# MYSQL_ROOT_PASSWORD="任意のルートパスワード"
-MYSQL_ROOT_PASSWORD=root
-# MYSQL_DATABASE="任意のデータベース名"
-MYSQL_DATABASE=djangodb
-# MYSQL_USER="任意のユーザ名"
-MYSQL_USER=django
-# MYSQL_PASSWORD="任意のパスワード"
-MYSQL_PASSWORD=django
-# MYSQL_HOST="MySQLのサービス名"
-MYSQL_HOST=db
-# MYSQL_PORT="MySQLのポート番号"
-MYSQL_PORT=3306
-
-PMA_ARBITRARY=1
-# MySQLのサービス名を指定
-PMA_HOST=db
-PMA_USER=root
-# MySQLのrootユーザのパスワード
-PMA_PASSWORD=root
+MYSQL_ROOT_PASSWORD=rootパスワード
+MYSQL_DATABASE=データベース名
+# init.sqlのユーザー名と同じにすること
+MYSQL_USER=ユーザー名
+MYSQL_PASSWORD=パスワード
+DJANGO_SECRET_KEY=Djangoのシークレットキー
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
 ```
 
-2. Djangoのプロジェクト構成を作成する。
+2. 開発環境をビルドして実行します：
+
+2-1. Djangoのプロジェクト構成を作成する。
 ```
 docker compose -f docker-compose.dev.yml run app django-admin startproject <プロジェクト名> .
 ```
 
-3. <プロジェクト名>/settings.pyを設定する。
+2-1-2. <プロジェクト名>/settings.pyを設定する
 ```
-# osのモジュールをインポート
 import os
+from pathlib import Path
 
-# ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['*']
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
+
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
+
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 [::1]').split()
+
+# Application definition
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = '<プロジェクト名>.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # 'DIRS': [],
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -59,37 +86,92 @@ TEMPLATES = [
     },
 ]
 
-# MySQLのパラメータを.envから取得
+WSGI_APPLICATION = '<プロジェクト名>.wsgi.application'
+
+# Database
+# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        # コンテナ内の環境変数をDATABASESのパラメータに反映
-        "NAME": os.environ.get("MYSQL_DATABASE"),
-        "USER": os.environ.get("MYSQL_USER"),
-        "PASSWORD": os.environ.get("MYSQL_PASSWORD"),
-        "HOST": os.environ.get("MYSQL_HOST"),
-        "PORT": os.environ.get("MYSQL_PORT"),
+    'default': {
+        'ENGINE': 'mysql.connector.django',
+        'NAME': os.environ.get('MYSQL_DATABASE'),
+        'USER': os.environ.get('MYSQL_USER'),
+        'PASSWORD': os.environ.get('MYSQL_PASSWORD'),
+        'HOST': 'db',
+        'PORT': '3306',
     }
 }
 
-# 言語を日本語に設定
+# Password validation
+# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+# Internationalization
+# https://docs.djangoproject.com/en/4.2/topics/i18n/
+
 LANGUAGE_CODE = 'ja'
-# タイムゾーンをAsia/Tokyoに設定
+
 TIME_ZONE = 'Asia/Tokyo'
 
-# STATIC_ROOTを設定
-# Djangoの管理者画面にHTML、CSS、Javascriptが適用されます
-STATIC_ROOT = "/static/"
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+USE_I18N = True
+
+USE_TZ = True
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/4.2/howto/static-files/
+
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# 追加の静的ファイルディレクトリ
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ```
 
-4. Djangoアプリ構成を作成する。
+2-2. Djangoアプリ構成を作成する。
 ```
 docker compose -f docker-compose.dev.yml run app python manage.py startapp <アプリ名>
 ```
 
-5. <プロジェクト名>/settings.pyにアプリを追加する。
+2-2-2. <プロジェクト名>/settings.pyにアプリを追加する。
 ```
+import os
+from pathlib import Path
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
+
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
+
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 [::1]').split()
+
+# Application definition
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -97,115 +179,200 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    '<アプリ名>',
+    '<アプリ名>',  # 追加したアプリケーション
 ]
 
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = '<プロジェクト名>.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = '<プロジェクト名>.wsgi.application'
+
+# Database
+# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'mysql.connector.django',
+        'NAME': os.environ.get('MYSQL_DATABASE'),
+        'USER': os.environ.get('MYSQL_USER'),
+        'PASSWORD': os.environ.get('MYSQL_PASSWORD'),
+        'HOST': 'db',
+        'PORT': '3306',
+    }
+}
+
+# Password validation
+# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+# Internationalization
+# https://docs.djangoproject.com/en/4.2/topics/i18n/
+
+LANGUAGE_CODE = 'ja'
+
+TIME_ZONE = 'Asia/Tokyo'
+
+USE_I18N = True
+
+USE_TZ = True
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/4.2/howto/static-files/
+
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# 追加の静的ファイルディレクトリ
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ```
 
-6. Djangoディレクトリの中に、staticディレクトリとtemplatesディレクトリを作成する。
-
-
-7. Dockerを削除する。
-```
-# docker-compose.dev.ymlのコンテナを一括で停止・削除
-docker compose -f docker-compose.dev.yml down -v
-
-# Dockerイメージを一括で削除
-docker image rm $(docker images -q)
-
-# Dockerのシステムなどを削除（実行後、yを入力）
-docker system prune
-
-```
-
-8. Dockerを起動する。
+Dockerを起動する。
 ```
 docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-9. マイグレーションを実行する。
-```
-docker compose -f docker-compose.dev.yml exec app python manage.py makemigrations <アプリ名> --noinput
-docker compose -f docker-compose.dev.yml exec app python manage.py migrate --noinput
+3. `http://localhost:8000` でアプリケーションにアクセスできます。
 
-```
+## 本番環境のセットアップ
 
-10. staticのファイルをsettings.pyで指定した場所に集める。
+1. 本番環境用の`.env.prod`ファイルを作成し、以下のような環境変数を設定します：
 ```
-docker compose -f docker-compose.dev.yml exec app python manage.py collectstatic --noinput
-
-```
-
-11. スーパーユーザーを作成する。
-```
-docker compose -f docker-compose.dev.yml exec app python manage.py createsuperuser
-
+MYSQL_ROOT_PASSWORD=本番用rootパスワード
+MYSQL_DATABASE=
+# init.sqlのユーザー名と同じにすること
+MYSQL_USER=本番用ユーザー名
+MYSQL_PASSWORD=本番用パスワード
+DJANGO_SECRET_KEY=本番用Djangoシークレットキー
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=あなたのドメイン.com
 ```
 
-12. 起動確認する。
+2. 本番環境をビルドして実行します：
 ```
-http://localhost:8000
-```
-
-13. staticディレクトリをコピー
-```
-django/staticを、nginx/staticにコピーをする
+docker-compose -f docker-compose.prod.yml up --build
 ```
 
-14. 本番用の設定
-- django/uwsgi.iniをアプリ用に修正する。
-- 本番用Dockerを起動する。
-```
-docker compose -f docker-compose.prod.yml up -d --build
-```
+3. `http://localhost` またはあなたのドメインでアプリケーションにアクセスできます。
 
-15. 本番環境の起動確認する。
-```
-http://localhost
-```
----
+## その他のコマンド
 
-- 開発用、起動方法
+- マイグレーションの作成：
 ```
-docker compose -f docker-compose.dev.yml up -d --build
+docker-compose exec app python manage.py makemigrations
 ```
 
-- 本番用、起動方法
+- マイグレーションの適用：
 ```
-docker compose -f docker-compose.prod.yml up -d --build
+docker-compose exec app python manage.py migrate
 ```
 
-
----
-
-- Git運用方法
+- スーパーユーザーの作成：
 ```
-# git flow初期化
-git flow init -d
-
-# ローカルブランチとリモートブランチを紐付ける
-git push -u origin develop
-
-# featureで開発開始
-git flow feature start feature_name
-(例)
-git flow feature start '#first_plot'
-
-# 作業をステージングに上げる
-git add .
-
-# git commit
-git commit -m '<作業内容>'
-
-# コミットしたものをPushする
-git push -u origin 'feature/<ブランチ名>'
-(例)
-git push -u origin 'feature/#first_plot'
-
-# featureブランチでの作業終了
-git flow feature finish feature_name
-(例)
-git flow feature finish '#first_plot'
-(これで自動的にdevelopブランチにチェックアウトされる)
-
+docker-compose exec app python manage.py createsuperuser
 ```
+
+## デプロイメント
+
+このセットアップは、AWS ECS Fargateに簡単にデプロイできるように設計されています。以下の点に注意してください：
+
+1. DockerイメージをAmazon ECRにプッシュします。
+2. ECSタスク定義とサービスをセットアップします。
+3. ECSで環境変数を設定します。
+4. FargateサービスのApplication Load Balancerをセットアップします。
+
+AWS ECS Fargateへの詳細なデプロイ手順については、AWSのドキュメントを参照してください。
+
+## プロジェクト構造
+```
+.
+├── .dockerignore
+├── .gitignore
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── README.md
+├── app
+│   ├── manage.py
+│   ├── core
+│   │   ├── init.py
+│   │   ├── asgi.py
+│   │   ├── settings.py
+│   │   ├── urls.py
+│   │   └── wsgi.py
+│   ├── static
+│   │   └── .gitkeep
+│   └── requirements.txt
+└── docker
+├── app
+│   ├── Dockerfile.dev
+│   ├── Dockerfile.prod
+│   └── uwsgi.ini
+├── mysql
+│   ├── Dockerfile
+│   ├── init.sql
+│   └── my.cnf
+└── nginx
+├── Dockerfile
+└── nginx.conf
+```
+
+## 使用技術
+
+- Django 4.2.7
+- MySQL 8.0
+- Nginx 1.25
+- uWSGI 2.0.23
+- Docker & Docker Compose
+
+## 貢献
+
+プロジェクトへの貢献方法や行動規範については、CONTRIBUTING.mdをお読みください。
+
+## ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。詳細はLICENSE.mdファイルをご覧ください。
